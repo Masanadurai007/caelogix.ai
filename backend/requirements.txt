@@ -12,3 +12,4 @@ langchain==0.2.11
 langchain-groq==0.1.9
 langgraph==0.1.19
 gunicorn==22.0.0
+requests==2.32.3

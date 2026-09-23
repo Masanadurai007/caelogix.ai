@@ -1,6 +1,4 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests
 
 from config import settings
 
@@ -8,19 +6,15 @@ from config import settings
 def send_contact_notification(name: str, email: str, company: str, message: str, service_interest: str):
     """Sends an email to the studio's inbox when a contact form is submitted.
 
-    Silently does nothing if SMTP credentials aren't configured, so local
-    development without email setup doesn't crash the contact endpoint.
+    Uses Resend's HTTPS API instead of raw SMTP, since many hosts (including
+    Render's free tier) block outbound SMTP ports (25/465/587). Silently
+    does nothing if not configured, so local dev without email setup
+    doesn't crash the contact endpoint.
     """
-    if not settings.smtp_user or not settings.smtp_app_password:
+    if not settings.resend_api_key or not settings.contact_notify_email:
         return
 
-    msg = MIMEMultipart()
-    msg["From"] = settings.smtp_user
-    msg["To"] = settings.smtp_user
-    msg["Subject"] = f"New contact form submission — {name}"
-
-    body = f"""
-New message from the Caelogix contact form:
+    body = f"""New message from the Caelogix contact form:
 
 Name: {name}
 Email: {email}
@@ -30,13 +24,22 @@ Service interested in: {service_interest or "-"}
 Message:
 {message}
 """
-    msg.attach(MIMEText(body, "plain"))
 
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(settings.smtp_user, settings.smtp_app_password)
-            server.sendmail(settings.smtp_user, settings.smtp_user, msg.as_string())
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+            json={
+                "from": f"Caelogix Contact Form <{settings.contact_from_email}>",
+                "to": [settings.contact_notify_email],
+                "reply_to": email,
+                "subject": f"New contact form submission — {name}",
+                "text": body,
+            },
+            timeout=10,
+        )
+        if response.status_code >= 400:
+            print(f"Failed to send contact notification email: {response.status_code} {response.text}")
     except Exception as e:
         # Don't let an email failure break the contact form submission itself
         print(f"Failed to send contact notification email: {e}")

@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_app_password: str = ""
 
+    resend_api_key: str = ""
+    contact_notify_email: str = ""
+    contact_from_email: str = "onboarding@resend.dev"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
